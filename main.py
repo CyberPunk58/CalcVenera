@@ -1,84 +1,90 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
 import openpyxl
 import re
 
-# Открыть файл Excel
-workbook = openpyxl.load_workbook('111.xlsx')
+def process_excel():
+    global file_path
+    if not file_path:
+        messagebox.showerror("Ошибка", "Пожалуйста, выберите файл Excel.")
+        return
 
-# Получить активный лист
-sheet = workbook.active
+    try:
+        workbook = openpyxl.load_workbook(file_path)
+        main_sheet = workbook.active
 
-# Создать новый лист или очистить существующий, если таковой уже есть
-sheet_name = 'Специалисты'
-if sheet_name in workbook.sheetnames:
-    new_sheet = workbook[sheet_name]
-    new_sheet.delete_rows(1, new_sheet.max_row)
-else:
-    new_sheet = workbook.create_sheet(sheet_name)
+        # Создание или очистка листа "Специалисты"
+        sheet_name = 'Специалисты'
+        if sheet_name in workbook.sheetnames:
+            new_sheet = workbook[sheet_name]
+            new_sheet.delete_rows(1, new_sheet.max_row)
+        else:
+            new_sheet = workbook.create_sheet(sheet_name)
 
-# Шаблон для разделения содержимого ячеек
-delimiter_pattern = r',|\.|:'
+        # Обработка данных
+        delimiter_pattern = r',|\.|:'
+        unique_entries = set()
 
-# Множество для хранения уникальных специальностей и исследований
-unique_entries = set()
+        for cell in main_sheet['C']:
+            items = re.split(delimiter_pattern, cell.value.strip()) if cell.value else []
+            for item in items:
+                cleaned = item.strip()
+                if cleaned:
+                    unique_entries.add(cleaned)
 
-# Обрабатываем третий столбец на первом листе
-for cell in sheet['C']:
-    items = re.split(delimiter_pattern, cell.value.strip()) if cell.value else []
-    for item in items:
-        cleaned = item.strip()
-        if cleaned:
-            unique_entries.add(cleaned)
+        for i, entry in enumerate(sorted(unique_entries), start=1):
+            new_sheet.cell(row=i, column=1).value = entry
 
-# Запись уникальных специальностей и исследований на новый лист
-for i, entry in enumerate(sorted(unique_entries), start=1):
-    new_sheet.cell(row=i, column=1).value = entry
+        # Специалисты и фразы
+        special_phrases = ["гинеколог", "Мазок на флору", "Мазок на онкоцитологию", "УЗИ органов малого таза"]
+        specialists_sheet = new_sheet
 
-# Сохранить изменения в файле Excel
-workbook.save('updated_data.xlsx')
+        for i in range(1, specialists_sheet.max_row + 1):
+            specialist = specialists_sheet.cell(row=i, column=1).value
+            sum_values = 0
 
-# Вывод сообщения об успешном выполнении операции
-print("Файл 'updated_data.xlsx' успешно обновлен и содержит список всех специальностей и исследований.")
+            # Проверка и подсчет
+            for row in main_sheet.iter_rows(min_row=1):
+                if row[2].value and specialist in str(row[2].value):
+                    check_special = any(phrase in specialist for phrase in special_phrases)
+                    if check_special:
+                        value2 = row[5].value if row[5].value is not None and isinstance(row[5].value, (int, float)) else 0
+                        sum_values += value2
+                    else:
+                        value1 = row[4].value if row[4].value is not None and isinstance(row[4].value, (int, float)) else 0
+                        value2 = row[5].value if row[5].value is not None and isinstance(row[5].value, (int, float)) else 0
+                        sum_values += value1 + value2
 
-########
-# Открыть файл Excel
-workbook = openpyxl.load_workbook('updated_data.xlsx')
+            specialists_sheet.cell(row=i, column=2).value = sum_values
 
-# Получить активный лист с таблицей
-main_sheet = workbook.active
+        # Сохранение файла с результатом
+        workbook.save(file_path.replace('.xlsx', '_calculation.xlsx'))
+        messagebox.showinfo("Результат", "Файл успешно обработан!")
 
-# Получить лист со специалистами
-specialists_sheet = workbook['Специалисты']
+    except Exception as e:
+        messagebox.showerror("Ошибка при обработке", str(e))
 
-# Список специальных фраз
-special_phrases = ["гинеколог", "Мазок на флору", "Мазок на онкоцитологию", "УЗИ органов малого таза"]
+def select_file():
+    global file_path
+    file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx")])
+    if file_path:
+        file_label.config(text=f"Выбранный файл: {file_path}")
 
-# Проходим по каждой специальности на листе со специалистами
-for i in range(1, specialists_sheet.max_row + 1):
-    specialist = specialists_sheet.cell(row=i, column=1).value
-    sum_values = 0  # Переменная для суммирования значений в 5 и 6 столбцах
+# GUI
+root = tk.Tk()
+root.title("Обработка Excel")
+root.geometry("500x200")
 
-    # Проверяем, содержит ли специальность одну из особых фраз
-    check_special = any(phrase in specialist for phrase in special_phrases)
+file_path = ''
 
-    # Ищем вхождения на листе с таблицей
-    for row in main_sheet.iter_rows(min_row=1):
-        if row[2].value and specialist in str(row[2].value):  # Проверяем вхождение специалиста
-            # Если специальность содержит одну из особых фраз, учитываем только столбец 6
-            if check_special:
-                value2 = row[5].value if row[5].value is not None and isinstance(row[5].value, (int, float)) else 0
-                sum_values += value2
-            else:
-                # Иначе учитываем значения из обоих столбцов 5 и 6
-                value1 = row[4].value if row[4].value is not None and isinstance(row[4].value, (int, float)) else 0
-                value2 = row[5].value if row[5].value is not None and isinstance(row[5].value, (int, float)) else 0
+# Элементы интерфейса
+select_button = tk.Button(root, text="Выбрать файл Excel", command=select_file)
+select_button.pack(pady=10)
 
-                sum_values += value1 + value2
+file_label = tk.Label(root, text="Файл не выбран")
+file_label.pack()
 
-    # Записываем полученную сумму на листе со специалистами во вторую колонку
-    specialists_sheet.cell(row=i, column=2).value = sum_values
+process_button = tk.Button(root, text="Начать обработку", command=process_excel)
+process_button.pack(pady=20)
 
-# Сохраняем изменения
-workbook.save('updated_data_with_special_conditions.xlsx')
-
-# Вывод сообщения об успешном выполнении операции
-print("Файл 'updated_data_with_special_conditions.xlsx' успешно обновлен с суммированными значениями.")
+root.mainloop()
