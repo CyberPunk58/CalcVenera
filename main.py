@@ -49,29 +49,36 @@ main_sheet = workbook.active
 # Получить лист со специалистами
 specialists_sheet = workbook['Специалисты']
 
+# Список специальных фраз
+special_phrases = ["гинеколог", "Мазок на флору", "Мазок на онкоцитологию", "УЗИ органов малого таза"]
+
 # Проходим по каждой специальности на листе со специалистами
 for i in range(1, specialists_sheet.max_row + 1):
     specialist = specialists_sheet.cell(row=i, column=1).value
     sum_values = 0  # Переменная для суммирования значений в 5 и 6 столбцах
 
+    # Проверяем, содержит ли специальность одну из особых фраз
+    check_special = any(phrase in specialist for phrase in special_phrases)
+
     # Ищем вхождения на листе с таблицей
     for row in main_sheet.iter_rows(min_row=1):
         if row[2].value and specialist in str(row[2].value):  # Проверяем вхождение специалиста
-            # Конвертируем значения из 5 и 6 колонки в числа, если они не None и не строки
-            value1 = 0
-            value2 = 0
-            if row[4].value is not None and isinstance(row[4].value, (int, float)):
-                value1 = row[4].value
-            if row[5].value is not None and isinstance(row[5].value, (int, float)):
-                value2 = row[5].value
+            # Если специальность содержит одну из особых фраз, учитываем только столбец 6
+            if check_special:
+                value2 = row[5].value if row[5].value is not None and isinstance(row[5].value, (int, float)) else 0
+                sum_values += value2
+            else:
+                # Иначе учитываем значения из обоих столбцов 5 и 6
+                value1 = row[4].value if row[4].value is not None and isinstance(row[4].value, (int, float)) else 0
+                value2 = row[5].value if row[5].value is not None and isinstance(row[5].value, (int, float)) else 0
 
-            sum_values += value1 + value2
+                sum_values += value1 + value2
 
     # Записываем полученную сумму на листе со специалистами во вторую колонку
     specialists_sheet.cell(row=i, column=2).value = sum_values
 
 # Сохраняем изменения
-workbook.save('updated_data.xlsx')
+workbook.save('updated_data_with_special_conditions.xlsx')
 
 # Вывод сообщения об успешном выполнении операции
-print("Файл 'updated_data.xlsx' успешно обновлен с суммированными значениями.")
+print("Файл 'updated_data_with_special_conditions.xlsx' успешно обновлен с суммированными значениями.")
